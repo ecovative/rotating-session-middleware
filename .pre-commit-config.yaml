@@ -1,0 +1,65 @@
+---
+repos:
+  - repo: local
+    hooks:
+      - id: poetry-check
+        name: Poetry Check
+        description: run poetry check to validate config
+        entry: poetry check
+        language: python
+        pass_filenames: false
+        files: ^(.*/)?(poetry\.lock|pyproject\.toml)$
+      - id: ruff-format
+        name: Ruff Formatter
+        description: Enforce Python formatting with Ruff
+        entry: poetry run ruff format
+        language: python
+        require_serial: true
+        types: [python]
+        files: \.py$
+      - id: ruff-check
+        name: Ruff Check
+        description: Validate Python with Ruff
+        entry: poetry run ruff check
+        language: system
+        types: [python]
+        files: \.py$
+      - id: yamllint
+        name: Yaml Lint
+        description: Validate Yaml formatting with Yamllint
+        entry: poetry run yamllint
+        language: system
+        files: \.(yml|yaml)$
+      - id: mypy
+        name: Validate Python Typing
+        description: Validate Python typing with MyPy
+        entry: poetry run mypy
+        language: system
+        types: [python]
+        files: \.py$
+        exclude: "(docs|tests)/.*"
+        args: ["--config-file", "pyproject.toml"]
+      - id: licensecheck
+        name: Run Python License Checker
+        description: Check license compliance of Python requirements
+        entry: poetry run licensecheck
+        args: ['-0', '--ignore-licenses "MPL 2.0"']
+        language: system
+        types: [python]
+        files: pyproject\.toml
+        pass_filenames: false
+      - id: pytest
+        name: Run PyTest
+        description: Run Pytest to execute all the tests
+        entry: poetry run pytest
+        language: system
+        types: [python]
+        files: \.py$
+        args: ["-q", "-n", "4", "tests"]
+        pass_filenames: false
+      - id: shellcheck
+        name: Run ShellCheck
+        description: Run ShellCheck on the shell scripts
+        entry: poetry run shellcheck
+        language: system
+        types: [shell]

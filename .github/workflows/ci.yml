@@ -1,0 +1,166 @@
+# yamllint disable rule:line-length
+---
+name: CI / Publish
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 8 1,15 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Add Poetry to PATH
+        run: echo "${HOME}/.local/bin" >> $GITHUB_PATH
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'poetry'
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Run Pytest
+        run: |
+          poetry run pytest --cov=rotating_session_middleware --tb=short -q tests/ 2>&1 | tee pytest-output.txt
+          echo "### Test Results (Python ${{ matrix.python-version }})" >> $GITHUB_STEP_SUMMARY
+          SUMMARY=$(tail -1 pytest-output.txt)
+          if echo "$SUMMARY" | grep -q "failed"; then
+            echo "| | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+            echo "| Pytest | :red_circle: $SUMMARY |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+            echo "| Pytest | :green_circle: $SUMMARY |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Run Ruff
+        run: |
+          poetry run ruff check rotating_session_middleware 2>&1 | tee ruff-output.txt
+          RUFF_SUMMARY=$(tail -1 ruff-output.txt)
+          echo "| Ruff | :green_circle: $RUFF_SUMMARY |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Run MyPy
+        run: |
+          poetry run mypy --config-file pyproject.toml rotating_session_middleware 2>&1 | tee mypy-output.txt
+          MYPY_SUMMARY=$(tail -1 mypy-output.txt)
+          echo "| MyPy | :green_circle: $MYPY_SUMMARY |" >> $GITHUB_STEP_SUMMARY
+
+  build_package:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Add Poetry to PATH
+        run: echo "${HOME}/.local/bin" >> $GITHUB_PATH
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'poetry'
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Build the project
+        run: bash build_wheels.sh
+
+      - name: Summarize build artifacts
+        run: |
+          echo "### Build Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          for f in dist/*; do
+            SIZE=$(du -h "$f" | cut -f1)
+            echo "| \`$(basename "$f")\` | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          done
+
+      - name: Upload Python Build Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-artifacts
+          path: dist/
+
+  upload_release:
+    needs: build_package
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-tags: true
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.whl
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish_pypi:
+    needs: build_package
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/rotating-session-middleware
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

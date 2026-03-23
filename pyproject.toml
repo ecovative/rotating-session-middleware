@@ -1,0 +1,72 @@
+[project]
+name = "rotating-session-middleware"
+version = "0.1.0"
+description = "An ASGI session middleware for Starlette/FastAPI with atomic secret rotation"
+authors = [
+    {name = "Neale Petrillo", email = "neale@ecovative.com"}
+]
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "starlette (>=0.27.0)",
+    "itsdangerous (>=2.0.0,<3.0.0)",
+]
+
+[project.urls]
+Homepage = "https://github.com/ecovative/rotating-session-middleware"
+
+[tool.poetry]
+packages = [
+    { include = "rotating_session_middleware" }
+]
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.16.1"
+ruff = "^0.14.1"
+pytest = "^9.0.2"
+pre-commit = "^4.2.0"
+yamllint = "^1.37.1"
+pytest-xdist = "^3.8.0"
+licensecheck = "^2025.1.0"
+shellcheck-py = "^0.11.0.1"
+pytest-cov = "^7.0.0"
+pytest-asyncio = "^1.3.0"
+httpx = "^0.28.1"
+fastapi = "^0.119.0"
+
+[tool.coverage.run]
+source = ["rotating_session_middleware"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+fail_under = 90
+show_missing = true
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+warn_return_any = true
+strict = true
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
